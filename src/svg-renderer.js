@@ -39,6 +39,7 @@ class SvgRenderer {
         this._context = this._canvas.getContext('2d');
         this._measurements = {x: 0, y: 0, width: 0, height: 0};
         this._cachedImage = null;
+        this._needsScratchTextFix = false;
     }
 
     /**
@@ -111,6 +112,11 @@ class SvgRenderer {
             throw new Error('Document does not appear to be SVG.');
         }
         this._svgTag = this._svgDom.documentElement;
+
+        // Scratch-exported SVGs need manual fixing for text alignment.
+        // Best indication seems to be this "Exported by Scratch" comment.
+        this._needsScratchTextFix = svgString.indexOf('<!-- Exported by Scratch - http://scratch.mit.edu/ -->') !== -1;
+
         // Transform all text elements.
         this._transformText();
         // Transform measurements.
@@ -140,12 +146,11 @@ class SvgRenderer {
         // For each text element, apply quirks.
         const fontsNeeded = {};
         for (const textElement of textElements) {
-            // Remove x and y attributes - they are not used in Scratch.
-            textElement.removeAttribute('x');
-            textElement.removeAttribute('y');
-            // Set text-before-edge alignment:
-            // Scratch renders all text like this.
-            textElement.setAttribute('alignment-baseline', 'text-before-edge');
+            // Remove x and y attributes - they are used improperly in Scratch 2.0 SVGs
+            if (this._needsScratchTextFix) {
+                textElement.removeAttribute('x');
+                textElement.removeAttribute('y');
+            }
             // If there's no font size provided, provide one.
             if (!textElement.getAttribute('font-size')) {
                 textElement.setAttribute('font-size', '14');
@@ -163,10 +168,22 @@ class SvgRenderer {
                 textElement.textContent = '';
                 const lines = text.split('\n');
                 text = '';
-                for (const line of lines) {
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
                     const tspanNode = this._createSVGElement('tspan');
-                    tspanNode.setAttribute('x', '0');
-                    tspanNode.setAttribute('dy', '1.2em');
+
+                    if (this._needsScratchTextFix) {
+                        // Scratch positions text assuming this setting, but it isn't present.
+                        // Has to be set on the tspan or it does not work.
+                        tspanNode.setAttribute('alignment-baseline', 'text-before-edge');
+                    }
+
+                    // Lines > 1 require resetting x back to 0 and dy to 1 line.
+                    if (i !== 0) {
+                        tspanNode.setAttribute('x', '0');
+                        tspanNode.setAttribute('dy', '1.2em');
+                    }
+
                     tspanNode.textContent = line;
                     textElement.appendChild(tspanNode);
                 }
