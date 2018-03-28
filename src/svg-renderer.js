@@ -72,6 +72,16 @@ class SvgRenderer {
     }
 
     /**
+     * Load an SVG from a string, transform/normalize it and return a string.
+     * @param {string} svgString String of SVG data to draw in quirks-mode.
+     * @return {string} String of SVG data after being processed.
+     */
+    processString (svgString) {
+        this._loadString(svgString);
+        return this._toString();
+    }
+
+    /**
      * @return {Array<number>} the natural size, in Scratch units, of this SVG.
      */
     get size () {
